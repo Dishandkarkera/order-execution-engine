@@ -10,22 +10,22 @@ export async function orderSocket(server: FastifyInstance): Promise<void> {
   server.get(
     '/api/orders/ws',
     { websocket: true },
-    (connection, request: FastifyRequest) => {
+    (socket, request: FastifyRequest) => {
       const { orderId } = request.query as QueryParams;
 
       if (!orderId) {
         logger.warn('WebSocket connection attempt without orderId');
-        connection.socket.close();
+        socket.close();
         return;
       }
 
       logger.info({ orderId }, 'WebSocket client connected');
 
       // Subscribe client to order updates
-      subscribe(orderId, connection.socket);
+      subscribe(orderId, socket);
 
       // Send initial message
-      connection.socket.send(
+      socket.send(
         JSON.stringify({
           orderId,
           status: 'connected',
@@ -38,19 +38,19 @@ export async function orderSocket(server: FastifyInstance): Promise<void> {
 
       // Keep-alive ping
       const pingInterval = setInterval(() => {
-        if (connection.socket.readyState === connection.socket.OPEN) {
-          connection.socket.ping();
+        if (socket.readyState === socket.OPEN) {
+          socket.ping();
         }
       }, 30000); // Ping every 30 seconds
 
       // Cleanup on disconnect
-      connection.socket.on('close', () => {
+      socket.on('close', () => {
         logger.info({ orderId }, 'WebSocket client disconnected');
         clearInterval(pingInterval);
-        unsubscribe(orderId, connection.socket);
+        unsubscribe(orderId, socket);
       });
 
-      connection.socket.on('error', (err: Error) => {
+      socket.on('error', (err: Error) => {
         logger.error({ orderId, err }, 'WebSocket error');
       });
     }
